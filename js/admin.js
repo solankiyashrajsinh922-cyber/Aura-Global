@@ -2,18 +2,16 @@ import { db } from "./firebaseConfig.js";
 import {
   collection, getDocs, doc, updateDoc, deleteDoc, onSnapshot,
   query, orderBy, limit
-} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+} from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
 
-// ============================================
-// LOGIN
-// ============================================
+// Login
 const loginScreen = document.getElementById("loginScreen");
 const adminShell = document.getElementById("adminShell");
 const loginForm = document.getElementById("loginForm");
 const loginBtn = document.getElementById("loginBtn");
 const loginError = document.getElementById("loginError");
 
-let isAdmin = false; // stays in memory only for this session (page load)
+let isAdmin = false;
 
 loginForm.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -34,16 +32,16 @@ loginForm.addEventListener("submit", async (e) => {
     if (result.success) {
       isAdmin = true;
       loginScreen.style.display = "none";
-      adminShell.style.display = "flex";
+      adminShell.classList.add("active");
       initDashboard();
     } else {
-      loginError.textContent = "Galat token. Dubara try karo.";
+      loginError.textContent = "Wrong token. Try again.";
       loginError.style.display = "block";
       loginBtn.disabled = false;
       loginBtn.textContent = "Log In";
     }
   } catch (err) {
-    loginError.textContent = "Connection error. Dubara try karo.";
+    loginError.textContent = "Connection error. Try again.";
     loginError.style.display = "block";
     loginBtn.disabled = false;
     loginBtn.textContent = "Log In";
@@ -52,28 +50,24 @@ loginForm.addEventListener("submit", async (e) => {
 
 document.getElementById("logoutBtn").addEventListener("click", () => {
   isAdmin = false;
-  adminShell.style.display = "none";
+  adminShell.classList.remove("active");
   loginScreen.style.display = "flex";
   document.getElementById("adminToken").value = "";
   loginBtn.disabled = false;
   loginBtn.textContent = "Log In";
 });
 
-// ============================================
-// NAVIGATION (tab switching)
-// ============================================
-document.querySelectorAll(".nav-item").forEach(item => {
+// Navigation
+document.querySelectorAll(".nav-item").forEach((item) => {
   item.addEventListener("click", () => {
-    document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
-    document.querySelectorAll(".page-section").forEach(p => p.classList.remove("active"));
+    document.querySelectorAll(".nav-item").forEach((n) => n.classList.remove("active"));
+    document.querySelectorAll(".page-section").forEach((p) => p.classList.remove("active"));
     item.classList.add("active");
     document.getElementById("page-" + item.dataset.page).classList.add("active");
   });
 });
 
-// ============================================
-// HELPERS
-// ============================================
+// Helpers
 function formatDate(timestamp) {
   if (!timestamp || !timestamp.toDate) return "—";
   return timestamp.toDate().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
@@ -84,11 +78,15 @@ function formatTime(timestamp) {
   return timestamp.toDate().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
 }
 
-// ============================================
-// DASHBOARD INIT (called after successful login)
-// ============================================
-let initialized = false;
+function escapeHtml(str) {
+  if (!str) return "—";
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
 
+// Dashboard Init
+let initialized = false;
 function initDashboard() {
   if (initialized) return;
   initialized = true;
@@ -97,21 +95,17 @@ function initDashboard() {
   loadChat();
 }
 
-// ============================================
-// USERS TAB
-// ============================================
+// Users Tab
 function loadUsers() {
-  const usersRef = collection(db, "users");
-
-  onSnapshot(usersRef, (snapshot) => {
+  onSnapshot(collection(db, "users"), (snapshot) => {
     const usersList = document.getElementById("usersList");
     let total = 0, active = 0, banned = 0;
     let rowsHtml = "";
 
     if (snapshot.empty) {
-      usersList.innerHTML = '<div class="empty-state">Abhi tak koi users nahi hain.</div>';
+      usersList.innerHTML = '<div class="empty-state">No users registered yet.</div>';
     } else {
-      snapshot.forEach(docSnap => {
+      snapshot.forEach((docSnap) => {
         const u = docSnap.data();
         const uid = docSnap.id;
         total++;
@@ -119,20 +113,20 @@ function loadUsers() {
         if (status === "active") active++;
         if (status === "banned") banned++;
 
-        const banBtnLabel = status === "banned" ? "Unban" : "Ban";
-        const banBtnClass = status === "banned" ? "restore" : "ban";
-        const muteBtnLabel = status === "muted" ? "Unmute" : "Mute";
-        const muteBtnClass = status === "muted" ? "restore" : "mute";
+        const banLabel = status === "banned" ? "Unban" : "Ban";
+        const banClass = status === "banned" ? "restore" : "ban";
+        const muteLabel = status === "muted" ? "Unmute" : "Mute";
+        const muteClass = status === "muted" ? "restore" : "mute";
 
         rowsHtml += `
           <div class="table-row">
-            <div class="user-name">${escapeHtml(u.username || "—")}</div>
-            <div class="user-email">${escapeHtml(u.email || "—")}</div>
+            <div class="user-name">${escapeHtml(u.username)}</div>
+            <div class="user-email">${escapeHtml(u.email)}</div>
             <div><span class="badge ${status}">${status}</span></div>
             <div>${formatDate(u.createdAt)}</div>
             <div class="row-actions">
-              <button class="action-btn ${banBtnClass}" data-uid="${uid}" data-action="toggleBan">${banBtnLabel}</button>
-              <button class="action-btn ${muteBtnClass}" data-uid="${uid}" data-action="toggleMute">${muteBtnLabel}</button>
+              <button class="action-btn ${banClass}" data-uid="${uid}" data-action="toggleBan">${banLabel}</button>
+              <button class="action-btn ${muteClass}" data-uid="${uid}" data-action="toggleMute">${muteLabel}</button>
             </div>
           </div>`;
       });
@@ -143,8 +137,7 @@ function loadUsers() {
     document.getElementById("statActive").textContent = active;
     document.getElementById("statBanned").textContent = banned;
 
-    // Attach action listeners
-    usersList.querySelectorAll("button[data-action]").forEach(btn => {
+    usersList.querySelectorAll("button[data-action]").forEach((btn) => {
       btn.addEventListener("click", () => handleUserAction(btn.dataset.uid, btn.dataset.action));
     });
   });
@@ -152,42 +145,30 @@ function loadUsers() {
 
 async function handleUserAction(uid, action) {
   const userRef = doc(db, "users", uid);
-  const usersSnap = await getDocs(collection(db, "users"));
+  const snap = await getDocs(collection(db, "users"));
   let currentStatus = "active";
-  usersSnap.forEach(d => { if (d.id === uid) currentStatus = d.data().status || "active"; });
+  snap.forEach((d) => { if (d.id === uid) currentStatus = d.data().status || "active"; });
 
-  if (action === "toggleBan") {
-    const newStatus = currentStatus === "banned" ? "active" : "banned";
-    await updateDoc(userRef, { status: newStatus });
-  } else if (action === "toggleMute") {
-    const newStatus = currentStatus === "muted" ? "active" : "muted";
-    await updateDoc(userRef, { status: newStatus });
-  }
+  const newStatus = action === "toggleBan"
+    ? (currentStatus === "banned" ? "active" : "banned")
+    : (currentStatus === "muted" ? "active" : "muted");
+
+  await updateDoc(userRef, { status: newStatus });
 }
 
-function escapeHtml(str) {
-  const div = document.createElement("div");
-  div.textContent = str;
-  return div.innerHTML;
-}
-
-// ============================================
-// GROUPS TAB
-// ============================================
-async function loadGroups() {
-  const groupsList = document.getElementById("groupsList");
-  const groupsRef = collection(db, "groups");
-
-  onSnapshot(groupsRef, (snapshot) => {
+// Groups Tab
+function loadGroups() {
+  onSnapshot(collection(db, "groups"), (snapshot) => {
+    const groupsList = document.getElementById("groupsList");
     document.getElementById("statGroups").textContent = snapshot.size;
 
     if (snapshot.empty) {
-      groupsList.innerHTML = '<div class="empty-state">Abhi tak koi groups nahi bane.</div>';
+      groupsList.innerHTML = '<div class="empty-state">No groups created yet.</div>';
       return;
     }
 
     let rowsHtml = "";
-    snapshot.forEach(docSnap => {
+    snapshot.forEach((docSnap) => {
       const g = docSnap.data();
       const gid = docSnap.id;
       const memberCount = (g.members || []).length;
@@ -205,9 +186,9 @@ async function loadGroups() {
     });
     groupsList.innerHTML = rowsHtml;
 
-    groupsList.querySelectorAll("button[data-gid]").forEach(btn => {
+    groupsList.querySelectorAll("button[data-gid]").forEach((btn) => {
       btn.addEventListener("click", async () => {
-        if (confirm("Ye group delete karna hai? Ye undo nahi ho sakta.")) {
+        if (confirm("Delete this group? Cannot be undone.")) {
           await deleteDoc(doc(db, "groups", btn.dataset.gid));
         }
       });
@@ -215,28 +196,26 @@ async function loadGroups() {
   });
 }
 
-// ============================================
-// GLOBAL CHAT MONITOR TAB
-// ============================================
+// Chat Monitor Tab
 function loadChat() {
   const chatList = document.getElementById("chatList");
   const chatQuery = query(collection(db, "globalChat"), orderBy("timestamp", "desc"), limit(100));
 
   onSnapshot(chatQuery, (snapshot) => {
     if (snapshot.empty) {
-      chatList.innerHTML = '<div class="empty-state">Abhi tak koi messages nahi hain.</div>';
+      chatList.innerHTML = '<div class="empty-state">No messages yet.</div>';
       return;
     }
 
     let html = "";
-    snapshot.forEach(docSnap => {
+    snapshot.forEach((docSnap) => {
       const m = docSnap.data();
       const mid = docSnap.id;
       html += `
         <div class="chat-msg">
           <div>
-            <div class="chat-msg-sender">${escapeHtml(m.senderUsername || "Unknown")}</div>
-            <div class="chat-msg-text">${escapeHtml(m.message || "")}</div>
+            <div class="chat-msg-sender">${escapeHtml(m.senderUsername)}</div>
+            <div class="chat-msg-text">${escapeHtml(m.message)}</div>
             <div class="chat-msg-time">${formatTime(m.timestamp)}</div>
           </div>
           <button class="action-btn delete" data-mid="${mid}">Delete</button>
@@ -244,11 +223,10 @@ function loadChat() {
     });
     chatList.innerHTML = html;
 
-    chatList.querySelectorAll("button[data-mid]").forEach(btn => {
+    chatList.querySelectorAll("button[data-mid]").forEach((btn) => {
       btn.addEventListener("click", async () => {
         await deleteDoc(doc(db, "globalChat", btn.dataset.mid));
       });
     });
   });
 }
-
