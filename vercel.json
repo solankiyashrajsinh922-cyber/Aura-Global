@@ -1,0 +1,16 @@
+{
+  "buildCommand": "echo 'No build step needed'",
+  "outputDirectory": ".",
+  "rewrites": [
+    {
+      "source": "/api/adminLogin",
+      "destination": "/api/adminLogin.js"
+    }
+  ],
+  "functions": {
+    "api/adminLogin.js": {
+      "memorySize": 256,
+      "timeout": 10
+    }
+  }
+}

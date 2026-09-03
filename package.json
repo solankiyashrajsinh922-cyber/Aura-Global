@@ -1,0 +1,13 @@
+{
+  "name": "aura-global-admin",
+  "version": "1.0.0",
+  "description": "AURA Global Admin Panel - Web UI for managing users, groups, and chat",
+  "private": true,
+  "scripts": {
+    "dev": "echo 'Run via Vercel CLI'",
+    "build": "echo 'No build step'"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
