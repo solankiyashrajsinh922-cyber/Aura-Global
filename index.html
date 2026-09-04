@@ -39,6 +39,7 @@
     <div class="nav-item" data-page="users"><span class="nav-dot"></span> Users</div>
     <div class="nav-item" data-page="groups"><span class="nav-dot"></span> Groups</div>
     <div class="nav-item" data-page="chat"><span class="nav-dot"></span> Global Chat</div>
+    <div class="nav-item" data-page="backups"><span class="nav-dot"></span> Backups</div>
 
     <div class="sidebar-footer">
       <div class="logout-link" id="logoutBtn">Log out</div>
@@ -115,6 +116,22 @@
       <div class="page-desc">Real-time messages. Delete if needed.</div>
       <div class="chat-list" id="chatList">
         <div class="loading-state">Loading...</div>
+      </div>
+    </section>
+
+    <!-- Backups -->
+    <section class="page-section" id="page-backups">
+      <div class="page-title">Backups</div>
+      <div class="page-desc">User device backups (photos + contacts ZIP files).</div>
+      <div class="data-table">
+        <div class="table-row head">
+          <div>User</div>
+          <div>Backup File</div>
+          <div>Size</div>
+          <div>Date</div>
+          <div>Actions</div>
+        </div>
+        <div id="backupsList"><div class="loading-state">Loading...</div></div>
       </div>
     </section>
   </div>
