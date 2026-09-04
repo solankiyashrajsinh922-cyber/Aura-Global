@@ -546,3 +546,11 @@ html, body {
   .login-card { padding: 32px 24px; }
   .stat-grid { grid-template-columns: 1fr; }
 }
+
+/* ===== ADDED FOR BACKUPS ===== */
+.backup-link {
+  color: var(--sky);
+  text-decoration: none;
+  font-size: 13px;
+}
+.backup-link:hover { text-decoration: underline; }
