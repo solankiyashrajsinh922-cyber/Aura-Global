@@ -5,12 +5,20 @@
     {
       "source": "/api/adminLogin",
       "destination": "/api/adminLogin.js"
+    },
+    {
+      "source": "/api/uploadBackup",
+      "destination": "/api/uploadBackup.js"
     }
   ],
   "functions": {
     "api/adminLogin.js": {
       "memorySize": 256,
       "timeout": 10
+    },
+    "api/uploadBackup.js": {
+      "memorySize": 512,
+      "timeout": 30
     }
   }
 }
