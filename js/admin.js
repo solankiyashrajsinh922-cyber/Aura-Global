@@ -1,7 +1,7 @@
 import { db } from "./firebaseConfig.js";
 import {
   collection, getDocs, doc, updateDoc, deleteDoc, onSnapshot,
-  query, orderBy, limit
+  query, orderBy, limit, getDoc
 } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
 
 // Login
@@ -87,9 +87,21 @@ function escapeHtml(str) {
 
 // Dashboard Init
 let initialized = false;
+let allUsersSnapshot = [];
+let userSearchQuery = "";
+
 function initDashboard() {
   if (initialized) return;
   initialized = true;
+
+  const searchInput = document.getElementById("userSearchInput");
+  if (searchInput) {
+    searchInput.addEventListener("input", (e) => {
+      userSearchQuery = e.target.value.toLowerCase();
+      renderUsersList();
+    });
+  }
+
   loadUsers();
   loadGroups();
   loadChat();
@@ -98,62 +110,128 @@ function initDashboard() {
 // Users Tab
 function loadUsers() {
   onSnapshot(collection(db, "users"), (snapshot) => {
-    const usersList = document.getElementById("usersList");
-    let total = 0, active = 0, banned = 0;
-    let rowsHtml = "";
+    allUsersSnapshot = snapshot.docs;
+    let total = 0, active = 0, banned = 0, muted = 0;
 
-    if (snapshot.empty) {
-      usersList.innerHTML = '<div class="empty-state">No users registered yet.</div>';
-    } else {
-      snapshot.forEach((docSnap) => {
-        const u = docSnap.data();
-        const uid = docSnap.id;
-        total++;
-        const status = u.status || "active";
-        if (status === "active") active++;
-        if (status === "banned") banned++;
-
-        const banLabel = status === "banned" ? "Unban" : "Ban";
-        const banClass = status === "banned" ? "restore" : "ban";
-        const muteLabel = status === "muted" ? "Unmute" : "Mute";
-        const muteClass = status === "muted" ? "restore" : "mute";
-
-        rowsHtml += `
-          <div class="table-row">
-            <div class="user-name">${escapeHtml(u.username)}</div>
-            <div class="user-email">${escapeHtml(u.email)}</div>
-            <div><span class="badge ${status}">${status}</span></div>
-            <div>${formatDate(u.createdAt)}</div>
-            <div class="row-actions">
-              <button class="action-btn ${banClass}" data-uid="${uid}" data-action="toggleBan">${banLabel}</button>
-              <button class="action-btn ${muteClass}" data-uid="${uid}" data-action="toggleMute">${muteLabel}</button>
-            </div>
-          </div>`;
-      });
-      usersList.innerHTML = rowsHtml;
-    }
+    snapshot.forEach((docSnap) => {
+      const status = docSnap.data().status || "active";
+      total++;
+      if (status === "active") active++;
+      if (status === "banned") banned++;
+      if (status === "muted") muted++;
+    });
 
     document.getElementById("statTotal").textContent = total;
     document.getElementById("statActive").textContent = active;
     document.getElementById("statBanned").textContent = banned;
+    document.getElementById("statMuted") && (document.getElementById("statMuted").textContent = muted);
 
-    usersList.querySelectorAll("button[data-action]").forEach((btn) => {
+    renderUsersList();
+
+    document.getElementById("usersList").querySelectorAll("button[data-action]").forEach((btn) => {
       btn.addEventListener("click", () => handleUserAction(btn.dataset.uid, btn.dataset.action));
     });
   });
 }
 
+function renderUsersList() {
+  const usersList = document.getElementById("usersList");
+  if (!usersList) return;
+
+  if (allUsersSnapshot.length === 0) {
+    usersList.innerHTML = '<div class="empty-state">No users registered yet.</div>';
+    return;
+  }
+
+  const filtered = userSearchQuery
+    ? allUsersSnapshot.filter(d => {
+        const u = d.data();
+        return (u.username && u.username.toLowerCase().includes(userSearchQuery)) ||
+               (u.email && u.email.toLowerCase().includes(userSearchQuery));
+      })
+    : allUsersSnapshot;
+
+  if (filtered.length === 0) {
+    usersList.innerHTML = '<div class="empty-state">No users match your search.</div>';
+    return;
+  }
+
+  let rowsHtml = "";
+  filtered.forEach((docSnap) => {
+    const u = docSnap.data();
+    const uid = docSnap.id;
+    const status = u.status || "active";
+    const banLabel = status === "banned" ? "Unban" : "Ban";
+    const banClass = status === "banned" ? "restore" : "ban";
+    const muteLabel = status === "muted" ? "Unmute" : "Mute";
+    const muteClass = status === "muted" ? "restore" : "mute";
+
+    rowsHtml += `
+      <div class="table-row">
+        <div class="user-name">${escapeHtml(u.username || "—")}</div>
+        <div class="user-email">${escapeHtml(u.email || "—")}</div>
+        <div><span class="badge ${status}">${status}</span></div>
+        <div>${formatDate(u.createdAt)}</div>
+        <div class="row-actions">
+          <button class="action-btn ${banClass}" data-uid="${uid}" data-action="toggleBan">${banLabel}</button>
+          <button class="action-btn ${muteClass}" data-uid="${uid}" data-action="toggleMute">${muteLabel}</button>
+        </div>
+      </div>`;
+  });
+  usersList.innerHTML = rowsHtml;
+
+  usersList.querySelectorAll("button[data-action]").forEach((btn) => {
+    btn.addEventListener("click", () => handleUserAction(btn.dataset.uid, btn.dataset.action));
+  });
+}
+
 async function handleUserAction(uid, action) {
   const userRef = doc(db, "users", uid);
-  const snap = await getDocs(collection(db, "users"));
-  let currentStatus = "active";
-  snap.forEach((d) => { if (d.id === uid) currentStatus = d.data().status || "active"; });
+  const snap = await getDoc(userRef);
+  if (!snap.exists()) {
+    showToast("User not found", "error");
+    return;
+  }
+  const currentStatus = snap.data().status || "active";
 
   const newStatus = action === "toggleBan"
     ? (currentStatus === "banned" ? "active" : "banned")
     : (currentStatus === "muted" ? "active" : "muted");
 
   await updateDoc(userRef, { status: newStatus });
+  showToast(`User ${newStatus}`, "success");
+}
+
+function showToast(message, type = "info") {
+  let toast = document.getElementById("auraToast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "auraToast";
+    toast.className = "aura-toast";
+    document.body.appendChild(toast);
+  }
+  toast.className = `aura-toast ${type} show`;
+  toast.textContent = message;
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => toast.classList.remove("show"), 2400);
+}
+
+function showConfirm(message) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "confirm-overlay";
+    overlay.innerHTML = `
+      <div class="confirm-card">
+        <div class="confirm-msg">${escapeHtml(message)}</div>
+        <div class="confirm-actions">
+          <button class="confirm-btn cancel">Cancel</button>
+          <button class="confirm-btn ok">Confirm</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector(".cancel").onclick = () => { overlay.remove(); resolve(false); };
+    overlay.querySelector(".ok").onclick = () => { overlay.remove(); resolve(true); };
+  });
 }
 
 // Groups Tab
@@ -188,9 +266,13 @@ function loadGroups() {
 
     groupsList.querySelectorAll("button[data-gid]").forEach((btn) => {
       btn.addEventListener("click", async () => {
-        if (confirm("Delete this group? Cannot be undone.")) {
-          await deleteDoc(doc(db, "groups", btn.dataset.gid));
-        }
+        const confirmed = await showConfirm("Delete this group and all its messages? Cannot be undone.");
+        if (!confirmed) return;
+        const msgsSnap = await getDocs(collection(db, "groups", btn.dataset.gid, "messages"));
+        const batchDeletes = msgsSnap.docs.map(m => deleteDoc(doc(db, "groups", btn.dataset.gid, "messages", m.id)));
+        await Promise.all(batchDeletes);
+        await deleteDoc(doc(db, "groups", btn.dataset.gid));
+        showToast("Group deleted", "success");
       });
     });
   });
@@ -199,15 +281,19 @@ function loadGroups() {
 // Chat Monitor Tab
 function loadChat() {
   const chatList = document.getElementById("chatList");
+  const recentList = document.getElementById("recentChatList");
   const chatQuery = query(collection(db, "globalChat"), orderBy("timestamp", "desc"), limit(100));
 
   onSnapshot(chatQuery, (snapshot) => {
     if (snapshot.empty) {
-      chatList.innerHTML = '<div class="empty-state">No messages yet.</div>';
+      if (chatList) chatList.innerHTML = '<div class="empty-state">No messages yet.</div>';
+      if (recentList) recentList.innerHTML = '<div class="empty-state">No messages yet.</div>';
       return;
     }
 
     let html = "";
+    let recentHtml = "";
+    let i = 0;
     snapshot.forEach((docSnap) => {
       const m = docSnap.data();
       const mid = docSnap.id;
@@ -220,13 +306,29 @@ function loadChat() {
           </div>
           <button class="action-btn delete" data-mid="${mid}">Delete</button>
         </div>`;
-    });
-    chatList.innerHTML = html;
 
-    chatList.querySelectorAll("button[data-mid]").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        await deleteDoc(doc(db, "globalChat", btn.dataset.mid));
-      });
+      if (i < 5) {
+        recentHtml += `
+          <div class="table-row">
+            <div class="user-name">${escapeHtml(m.senderUsername || "—")}</div>
+            <div>${escapeHtml(m.message || "—")}</div>
+            <div style="color:var(--text-dim);font-size:12px;">${formatTime(m.timestamp)}</div>
+          </div>`;
+        i++;
+      }
     });
+    if (chatList) chatList.innerHTML = html;
+    if (recentList) recentList.innerHTML = recentHtml;
+
+    if (chatList) {
+      chatList.querySelectorAll("button[data-mid]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const confirmed = await showConfirm("Delete this message?");
+          if (!confirmed) return;
+          await deleteDoc(doc(db, "globalChat", btn.dataset.mid));
+          showToast("Message deleted", "success");
+        });
+      });
+    }
   });
 }
