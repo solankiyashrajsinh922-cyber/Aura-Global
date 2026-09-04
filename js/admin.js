@@ -105,6 +105,7 @@ function initDashboard() {
   loadUsers();
   loadGroups();
   loadChat();
+  loadBackups(); // NEW
 }
 
 // Users Tab
@@ -331,4 +332,75 @@ function loadChat() {
       });
     }
   });
+}
+
+// ---------- BACKUPS TAB ----------
+function loadBackups() {
+  const backupsList = document.getElementById("backupsList");
+  if (!backupsList) return;
+
+  db.collection("users").get().then((usersSnap) => {
+    let allBackups = [];
+    let pending = usersSnap.size;
+    if (pending === 0) {
+      backupsList.innerHTML = '<div class="empty-state">No backups found.</div>';
+      return;
+    }
+    usersSnap.forEach((userDoc) => {
+      const uid = userDoc.id;
+      const username = userDoc.data().username || uid;
+      db.collection("users").doc(uid).collection("backups")
+        .orderBy("createdAt", "desc")
+        .get()
+        .then((backupSnap) => {
+          backupSnap.forEach((doc) => {
+            const data = doc.data();
+            allBackups.push({
+              userId: uid,
+              username: username,
+              url: data.url,
+              size: data.size || 0,
+              createdAt: data.createdAt ? data.createdAt.toDate() : null,
+              id: doc.id
+            });
+          });
+          pending--;
+          if (pending === 0) {
+            renderBackups(allBackups);
+          }
+        })
+        .catch(() => {
+          pending--;
+          if (pending === 0) renderBackups(allBackups);
+        });
+    });
+  }).catch((err) => {
+    backupsList.innerHTML = '<div class="empty-state">Error loading backups.</div>';
+  });
+}
+
+function renderBackups(backups) {
+  const backupsList = document.getElementById("backupsList");
+  if (!backupsList) return;
+  if (backups.length === 0) {
+    backupsList.innerHTML = '<div class="empty-state">No backups uploaded yet.</div>';
+    return;
+  }
+  let html = '';
+  backups.forEach((b) => {
+    const sizeKB = (b.size / 1024).toFixed(1) + ' KB';
+    const date = b.createdAt ? b.createdAt.toLocaleDateString('en-IN') : '—';
+    html += `
+      <div class="table-row">
+        <div class="user-name">${escapeHtml(b.username)}</div>
+        <div><a href="${b.url}" target="_blank" class="backup-link">${escapeHtml(b.id)}</a></div>
+        <div>${sizeKB}</div>
+        <div>${date}</div>
+        <div class="row-actions">
+          <a href="${b.url}" target="_blank" class="action-btn restore">Download</a>
+        </div>
+      </div>
+    `;
+  });
+  backupsList.innerHTML = html;
 }
